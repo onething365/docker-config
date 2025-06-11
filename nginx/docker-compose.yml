@@ -1,0 +1,14 @@
+version: "2.2"
+services:
+  nginx:
+    container_name: nginx
+    image: nginx:1.22.1
+    ports:
+      - 80:80
+      - 443:443
+    restart: always
+    volumes:
+      - ${HOME}/docker/nginx/config/conf.d:/etc/nginx/conf.d
+      - ${HOME}/docker/nginx/config/nginx.conf:/etc/nginx/nginx.conf
+      - ${HOME}/docker/nginx/logs:/var/log/nginx
+      - ${HOME}/docker/nginx/www:/usr/share/nginx/html
