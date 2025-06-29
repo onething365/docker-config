@@ -1,0 +1,296 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "qwen-turbo-latest",
+          "mode": "list",
+          "cachedResultName": "qwen-turbo-latest"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        920,
+        620
+      ],
+      "id": "a646887b-1e10-4e84-b902-20ae429d6990",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "PRFj4z",
+          "name": "qianwen"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json }}",
+        "options": {
+          "systemMessage": "你是一个专业的文本摘要生成器，请执行以下操作：\n1. 接收包含title/content/link的JSON对象\n2. 生成新JSON对象\n要求：- 保持完全相同的JSON字段结构\n   - title和link字段原样保留\n   - 对content内容进行智能摘要：\n     * 保留核心观点和关键信息\n     * 长度约为原文的20-30%\n     * 语言简洁连贯\n     * 保持客观中立的态度\n3. 输出格式必须为有效的JSON，与输入结构完全一致\n处理优先级：\n1. 保持数据结构完整性\n2. 摘要质量 > 摘要长度\n3. 绝对不要添加原始内容外的信息"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        860,
+        420
+      ],
+      "id": "ed1a039e-e2b8-4f3b-8225-86b387daac4f",
+      "name": "AI 生成内容简介"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "table": {
+          "__rl": true,
+          "value": "feed",
+          "mode": "list",
+          "cachedResultName": "feed"
+        },
+        "columnToMatchOn": "title",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        1400,
+        420
+      ],
+      "id": "59870308-0b8e-4618-ba31-d2c46c8b4933",
+      "name": "MySQL",
+      "credentials": {
+        "mySql": {
+          "id": "46LbpAC3",
+          "name": "mysql-feed-prod"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const data = JSON.parse(item.json.output)\n  return {json:{\n    title:data.title,\n    content: data.content,\n    link: data.link,\n    feed_type:1,\n    create_time:$now.toFormat('yyyy-MM-dd HH:mm:ss'),\n    update_time:$now.toFormat('yyyy-MM-dd HH:mm:ss'),\n  }}\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        420
+      ],
+      "id": "c64e2ac0-3bce-4050-aa7b-bbbd04208fe8",
+      "name": "格式化入库数据"
+    },
+    {
+      "parameters": {
+        "jsCode": "return {titles:$input.all().map((item) => `'${item.json.title}'`).join(',')}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        320
+      ],
+      "id": "ea135225-cd1f-425f-a3eb-4180e09a6367",
+      "name": "titles"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT title from feed where title in ({{ $json.titles }});",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        400,
+        320
+      ],
+      "id": "637adaf1-bade-4885-a74d-055ab572fdbd",
+      "name": "alreadyindb",
+      "credentials": {
+        "mySql": {
+          "id": "46LbpAC3",
+          "name": "mysql-feed-prod"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "title",
+        "joinMode": "keepNonMatches",
+        "outputDataFrom": "input2",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        660,
+        420
+      ],
+      "id": "442b83f5-7964-4d64-acca-2799305a8632",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "url": "https://www.woshipm.com/category/it/feed",
+        "options": {
+          "ignoreSSL": false
+        }
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [
+        -20,
+        420
+      ],
+      "id": "e7f9e8c1-8edd-4ac4-ac63-ce4253d37ebc",
+      "name": "woshipm"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  return {json:{\n    title:item.json.title,\n    content: item.json.contentSnippet,\n    link: item.json.link\n  }}\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        560
+      ],
+      "id": "e2d6088e-287c-40fe-9d2e-e67a224fe3b1",
+      "name": "格式化feed数据"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 22
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -220,
+        420
+      ],
+      "id": "a7ddc2ab-b9ba-4989-8ac0-c0d65aceef28",
+      "name": "每天10点执行"
+    }
+  ],
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI 生成内容简介",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI 生成内容简介": {
+      "main": [
+        [
+          {
+            "node": "格式化入库数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "格式化入库数据": {
+      "main": [
+        [
+          {
+            "node": "MySQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "titles": {
+      "main": [
+        [
+          {
+            "node": "alreadyindb",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "alreadyindb": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "AI 生成内容简介",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "woshipm": {
+      "main": [
+        [
+          {
+            "node": "titles",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "格式化feed数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "格式化feed数据": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "每天10点执行": {
+      "main": [
+        [
+          {
+            "node": "woshipm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0308fc0dd6f7ea4acc3ebbd2ea1771c6b0c58d55c8d159408531598db13de5ae"
+  }
+}
